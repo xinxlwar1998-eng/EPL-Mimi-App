@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>EPL Myanmar Mini App</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--tg-theme-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #222222);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 22px; text-align: center; margin-bottom: 6px; }
+  p.sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 20px; }
+  #user { text-align: center; font-size: 15px; margin-bottom: 20px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .card {
+    background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .game-card {
+    display: block; width: 100%; text-align: left;
+    background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+    border: 2px solid #ddd; border-radius: 16px;
+    padding: 18px; margin-bottom: 14px; cursor: pointer;
+    color: var(--tg-theme-text-color, #222);
+  }
+  .game-card b { font-size: 18px; display: block; margin-bottom: 4px; }
+  .game-card span { font-size: 14px; color: #888; }
+  .q { font-size: 18px; font-weight: 600; margin-bottom: 16px; line-height: 1.5; }
+  .opt {
+    display: block; width: 100%;
+    padding: 14px; margin-bottom: 10px;
+    border: 2px solid #ddd; border-radius: 12px;
+    background: var(--tg-theme-bg-color, #fff);
+    color: var(--tg-theme-text-color, #222);
+    font-size: 16px; text-align: left; cursor: pointer;
+  }
+  .opt.correct { border-color: #22c55e; background: #dcfce7; }
+  .opt.wrong { border-color: #ef4444; background: #fee2e2; }
+  .opt:disabled { opacity: 0.9; cursor: default; }
+  #score, #mem-info, #snake-score { text-align: center; font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .btn {
+    display: block; width: 100%; padding: 14px;
+    border: none; border-radius: 12px;
+    background: #2481cc; color: #fff;
+    font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 6px;
+  }
+  .btn-grey { background: #888; }
+  #next { display: none; }
+  #result { display: none; text-align: center; }
+  #result h2 { font-size: 24px; margin-bottom: 10px; }
+  #result p { font-size: 17px; line-height: 1.6; margin-bottom: 18px; }
+  /* Memory */
+  .mem-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px; margin-bottom: 14px;
+  }
+  .mem-card {
+    aspect-ratio: 1; border-radius: 12px; border: 2px solid #ddd;
+    background: var(--tg-theme-bg-color, #fff);
+    font-size: 28px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mem-card.flipped, .mem-card.matched { background: #dcfce7; border-color: #22c55e; }
+  .mem-card.matched { opacity: 0.6; }
+  /* Snake */
+  #snake-canvas {
+    display: block; margin: 0 auto 12px auto;
+    background: #111; border-radius: 12px; max-width: 100%;
+  }
+  .snake-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 220px; margin: 0 auto 12px auto; }
+  .snake-controls button {
+    padding: 12px; font-size: 20px; border-radius: 12px;
+    border: 2px solid #ddd; background: var(--tg-theme-bg-color, #fff);
+    color: var(--tg-theme-text-color, #222); cursor: pointer;
+  }
+  #snake-msg { text-align: center; font-size: 16px; margin-bottom: 10px; min-height: 22px; }
+</style>
+</head>
+<body>
+  <h1>⚽ EPL Myanmar</h1>
+  <p class="sub">Mini Game App — ဂိမ်း ၃ ခု</p>
+  <div id="user"></div>
+
+  <!-- HOME -->
+  <div id="home" class="screen active">
+    <button class="game-card" onclick="openGame('quiz')">
+      <b>⚽ EPL Quiz</b>
+      <span>မေးခွန်း ၁၀ ခု — အမှတ်ရ၊ ပြန်ကစားလို့ရ</span>
+    </button>
+    <button class="game-card" onclick="openGame('memory')">
+      <b>🧠 Memory Match</b>
+      <span>ကတ်လှန်ပြီး အတွဲတူ ရှာပါ — အကြိမ်အနည်းဆုံးနဲ့ နိုင်အောင်လုပ်</span>
+    </button>
+    <button class="game-card" onclick="openGame('snake')">
+      <b>🐍 Snake Game</b>
+      <span>မြွေကို ထိန်းပြီး အစာစား၊ နံရံနဲ့ ကိုယ့်ကိုယ်ကို မထိစေနဲ့</span>
+    </button>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz-screen" class="screen">
+    <div class="card" id="quiz-card">
+      <div id="score">အမှတ်: 0 / 10</div>
+      <div class="q" id="question"></div>
+      <div id="options"></div>
+      <button class="btn" id="next">နောက်မေးခွန်း ➜</button>
+    </div>
+    <div class="card" id="result">
+      <h2>🎉 ပြီးသွားပြီ!</h2>
+      <p id="final-score"></p>
+      <button class="btn" id="restart">ပြန်ကစားမယ်</button>
+    </div>
+    <button class="btn btn-grey" onclick="showScreen('home')">← Home ပြန်သွားမယ်</button>
+  </div>
+
+  <!-- MEMORY -->
+  <div id="memory-screen" class="screen">
+    <div class="card">
+      <div id="mem-info">အကြိမ်: 0 — အတွဲ 0 / 8</div>
+      <div class="mem-grid" id="mem-grid"></div>
+      <div id="mem-msg" style="text-align:center;font-size:16px;min-height:22px;margin-bottom:10px;"></div>
+      <button class="btn" onclick="initMemory()">ပြန်စမယ်</button>
+    </div>
+    <button class="btn btn-grey" onclick="showScreen('home')">← Home ပြန်သွားမယ်</button>
+  </div>
+
+  <!-- SNAKE -->
+  <div id="snake-screen" class="screen">
+    <div class="card">
+      <div id="snake-score">အမှတ်: 0</div>
+      <canvas id="snake-canvas" width="300" height="300"></canvas>
+      <div id="snake-msg">Start နှိပ်ပြီး စဆော့ပါ</div>
+      <button class="btn" id="snake-start" onclick="startSnake()">▶ Start</button>
+      <div class="snake-controls">
+        <span></span><button onclick="setDir(0,-1)">⬆️</button><span></span>
+        <button onclick="setDir(-1,0)">⬅️</button><button onclick="setDir(0,1)">⬇️</button><button onclick="setDir(1,0)">➡️</button>
+      </div>
+    </div>
+    <button class="btn btn-grey" onclick="stopSnake(); showScreen('home')">← Home ပြန်သွားမယ်</button>
+  </div>
+
+<script>
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+  function haptic(type) {
+    try {
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.HapticFeedback) {
+        Telegram.WebApp.HapticFeedback.notificationOccurred(type);
+      }
+    } catch (e) {}
+  }
+  var user = (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) || null;
+  if (user) {
+    document.getElementById('user').textContent = 'မင်္ဂလာပါ, ' + (user.first_name || '') + ' 👋';
+  }
+
+  function showScreen(id) {
+    if (id !== 'snake-screen') { stopSnake(); }
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) { screens[i].classList.remove('active'); }
+    document.getElementById(id).classList.add('active');
+    if (window.Telegram && Telegram.WebApp && Telegram.WebApp.HapticFeedback) {
+      try { Telegram.WebApp.HapticFeedback.selectionChanged(); } catch (e) {}
+    }
+  }
+  function openGame(name) {
+    if (name === 'quiz') {
+      document.getElementById('quiz-card').style.display = 'block';
+      document.getElementById('result').style.display = 'none';
+      current = 0; score = 0;
+      showScreen('quiz-screen');
+      showQuestion();
+    } else if (name === 'memory') {
+      showScreen('memory-screen');
+      initMemory();
+    } else if (name === 'snake') {
+      showScreen('snake-screen');
+      drawSnake();
+    }
+  }
+
+  /* ===== QUIZ (10 questions) ===== */
+  var questions = [
+    { q: "Arsenal ရဲ့ အိမ်ကွင်းနာမည်က ဘာလဲ?", options: ["Emirates Stadium", "Old Trafford", "Anfield", "Stamford Bridge"], answer: 0 },
+    { q: "EPL မှာ တစ်ရာသီတည်း ဂိုးအများဆုံး သွင်းခဲ့သူက ဘယ်သူလဲ?", options: ["Mohamed Salah", "Erling Haaland", "Harry Kane", "Alan Shearer"], answer: 1 },
+    { q: "ဒီရာသီ Arsenal က Hull ကို ဘယ်ရလဒ်နဲ့ နိုင်ခဲ့လဲ?", options: ["2-0", "1-0", "3-1", "0-0"], answer: 1 },
+    { q: "Premier League ချန်ပီယံ အများဆုံး ရထားတဲ့ အသင်းက ဘယ်အသင်းလဲ?", options: ["Manchester United", "Liverpool", "Arsenal", "Chelsea"], answer: 0 },
+    { q: "Premier League သမိုင်းမှာ ဂိုးအများဆုံး သွင်းခဲ့သူက ဘယ်သူလဲ?", options: ["Alan Shearer", "Wayne Rooney", "Harry Kane", "Sergio Aguero"], answer: 0 },
+    { q: "2003-04 ရာသီမှာ တစ်ပွဲမှ မရှုံးဘဲ ချန်ပီယံ ဖြစ်ခဲ့တဲ့ အသင်းက ဘယ်အသင်းလဲ?", options: ["Arsenal", "Manchester United", "Chelsea", "Manchester City"], answer: 0 },
+    { q: "Premier League မှာ အသင်း ဘယ်နှစ်သင်း ပါဝင်လဲ?", options: ["18 သင်း", "20 သင်း", "22 သင်း", "24 သင်း"], answer: 1 },
+    { q: "EPL မှာ ပရိသတ်အများဆုံး ဆန့်တဲ့ ကွင်းက ဘယ်ကွင်းလဲ?", options: ["Old Trafford", "Emirates Stadium", "Etihad Stadium", "Anfield"], answer: 0 },
+    { q: "Liverpool ရဲ့ အိမ်ကွင်းနာမည်က ဘာလဲ?", options: ["Anfield", "Goodison Park", "St James' Park", "Villa Park"], answer: 0 },
+    { q: "Manchester City ရဲ့ နည်းပြက ဘယ်သူလဲ?", options: ["Pep Guardiola", "Jurgen Klopp", "Mikel Arteta", "Arne Slot"], answer: 0 }
+  ];
+  var current = 0, score = 0, answered = false;
+  function showQuestion() {
+    answered = false;
+    var item = questions[current];
+    document.getElementById('question').textContent = (current + 1) + '. ' + item.q;
+    document.getElementById('score').textContent = 'အမှတ်: ' + score + ' / ' + questions.length;
+    document.getElementById('next').style.display = 'none';
+    var box = document.getElementById('options');
+    box.innerHTML = '';
+    item.options.forEach(function(text, i) {
+      var btn = document.createElement('button');
+      btn.className = 'opt';
+      btn.textContent = text;
+      btn.onclick = function() { checkQuiz(i, btn); };
+      box.appendChild(btn);
+    });
+  }
+  function checkQuiz(i, btn) {
+    if (answered) return;
+    answered = true;
+    var item = questions[current];
+    var buttons = document.querySelectorAll('.opt');
+    buttons.forEach(function(b) { b.disabled = true; });
+    if (i === item.answer) { score++; btn.classList.add('correct'); haptic('success'); }
+    else { btn.classList.add('wrong'); buttons[item.answer].classList.add('correct'); haptic('error'); }
+    document.getElementById('score').textContent = 'အမှတ်: ' + score + ' / ' + questions.length;
+    var next = document.getElementById('next');
+    next.style.display = 'block';
+    next.textContent = (current === questions.length - 1) ? 'အဖြေကြည့်မယ်' : 'နောက်မေးခွန်း ➜';
+  }
+  document.getElementById('next').onclick = function() {
+    current++;
+    if (current < questions.length) { showQuestion(); }
+    else {
+      document.getElementById('quiz-card').style.display = 'none';
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('final-score').textContent = 'မင်းရမှတ်: ' + score + ' / ' + questions.length;
+      haptic('success');
+    }
+  };
+  document.getElementById('restart').onclick = function() {
+    current = 0; score = 0;
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('quiz-card').style.display = 'block';
+    showQuestion();
+  };
+
+  /* ===== MEMORY ===== */
+  var memSymbols = ['⚽','🏆','🥅','👟','🧤','⭐','🎯','🔥'];
+  var memFirst = null, memSecond = null, memLock = false, memMoves = 0, memMatched = 0;
+  function initMemory() {
+    var deck = memSymbols.concat(memSymbols);
+    deck.sort(function() { return Math.random() - 0.5; });
+    var grid = document.getElementById('mem-grid');
+    grid.innerHTML = '';
+    memFirst = null; memSecond = null; memLock = false; memMoves = 0; memMatched = 0;
+    document.getElementById('mem-msg').textContent = '';
+    updateMemInfo();
+    deck.forEach(function(sym) {
+      var card = document.createElement('button');
+      card.className = 'mem-card';
+      card.dataset.sym = sym;
+      card.textContent = '❓';
+      card.onclick = function() { flipMem(card); };
+      grid.appendChild(card);
+    });
+  }
+  function updateMemInfo() {
+    document.getElementById('mem-info').textContent = 'အကြိမ်: ' + memMoves + ' — အတွဲ ' + memMatched + ' / 8';
+  }
+  function flipMem(card) {
+    if (memLock || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+    card.classList.add('flipped');
+    card.textContent = card.dataset.sym;
+    if (!memFirst) { memFirst = card; return; }
+    memSecond = card;
+    memMoves++;
+    updateMemInfo();
+    if (memFirst.dataset.sym === memSecond.dataset.sym) {
+      memFirst.classList.add('matched');
+      memSecond.classList.add('matched');
+      memMatched++;
+      updateMemInfo();
+      haptic('success');
+      memFirst = null; memSecond = null;
+      if (memMatched === 8) {
+        document.getElementById('mem-msg').textContent = '🎉 နိုင်သွားပြီ! ' + memMoves + ' ကြိမ် လှန်ခဲ့တယ်!';
+        haptic('success');
+      }
+    } else {
+      memLock = true;
+      var a = memFirst, b = memSecond;
+      setTimeout(function() {
+        a.classList.remove('flipped'); a.textContent = '❓';
+        b.classList.remove('flipped'); b.textContent = '❓';
+        memFirst = null; memSecond = null; memLock = false;
+      }, 700);
+    }
+  }
+
+  /* ===== SNAKE ===== */
+  var snakeCanvas = document.getElementById('snake-canvas');
+  var snakeCtx = snakeCanvas.getContext('2d');
+  var snakeCell = 15, snakeTimer = null, snakeRunning = false;
+  var snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  var snakeDir = {x:1,y:0}, snakeNextDir = {x:1,y:0}, snakeFood = {x:15,y:10}, snakeScore = 0;
+  function drawSnake() {
+    snakeCtx.fillStyle = '#111';
+    snakeCtx.fillRect(0, 0, 300, 300);
+    snakeCtx.fillStyle = '#ef4444';
+    snakeCtx.fillRect(snakeFood.x * snakeCell, snakeFood.y * snakeCell, snakeCell - 1, snakeCell - 1);
+    snake.forEach(function(seg, i) {
+      snakeCtx.fillStyle = i === 0 ? '#22c55e' : '#4ade80';
+      snakeCtx.fillRect(seg.x * snakeCell, seg.y * snakeCell, snakeCell - 1, snakeCell - 1);
+    });
+    document.getElementById('snake-score').textContent = 'အမှတ်: ' + snakeScore;
+  }
+  function newFood() {
+    while (true) {
+      var f = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) };
+      var onSnake = snake.some(function(s) { return s.x === f.x && s.y === f.y; });
+      if (!onSnake) { snakeFood = f; return; }
+    }
+  }
+  function snakeStep() {
+    snakeDir = snakeNextDir;
+    var head = { x: snake[0].x + snakeDir.x, y: snake[0].y + snakeDir.y };
+    if (head.x < 0 || head.x >= 20 || head.y < 0 || head.y >= 20 ||
+        snake.some(function(s) { return s.x === head.x && s.y === head.y; })) {
+      stopSnake();
+      document.getElementById('snake-msg').textContent = '💥 Game Over! အမှတ်: ' + snakeScore + ' — Start နှိပ်ပြီး ပြန်ဆော့ပါ';
+      haptic('error');
+      return;
+    }
+    snake.unshift(head);
+    if (head.x === snakeFood.x && head.y === snakeFood.y) {
+      snakeScore++;
+      haptic('success');
+      newFood();
+    } else {
+      snake.pop();
+    }
+    drawSnake();
+  }
+  function startSnake() {
+    snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+    snakeDir = {x:1,y:0}; snakeNextDir = {x:1,y:0};
+    snakeScore = 0;
+    newFood();
+    document.getElementById('snake-msg').textContent = '';
+    if (snakeTimer) clearInterval(snakeTimer);
+    snakeRunning = true;
+    snakeTimer = setInterval(snakeStep, 150);
+    drawSnake();
+  }
+  function stopSnake() {
+    if (snakeTimer) { clearInterval(snakeTimer); snakeTimer = null; }
+    snakeRunning = false;
+  }
+  function setDir(x, y) {
+    if (snakeDir.x === -x && snakeDir.y === -y) return;
+    snakeNextDir = {x: x, y: y};
+  }
+  // Swipe controls
+  var touchX = 0, touchY = 0;
+  snakeCanvas.addEventListener('touchstart', function(e) { touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; }, {passive: true});
+  snakeCanvas.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - touchX;
+    var dy = e.changedTouches[0].clientY - touchY;
+    if (Math.abs(dx) > Math.abs(dy)) { setDir(dx > 0 ? 1 : -1, 0); }
+    else { setDir(0, dy > 0 ? 1 : -1); }
+  }, {passive: true});
+
+  showQuestion();
+  drawSnake();
+</script>
+</body>
+</html>
