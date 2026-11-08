@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>EPL Myanmar Mini App</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--tg-theme-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #222222);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 22px; text-align: center; margin-bottom: 6px; }
+  p.sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 20px; }
+  #user { text-align: center; font-size: 15px; margin-bottom: 20px; }
+  .card {
+    background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .q { font-size: 18px; font-weight: 600; margin-bottom: 16px; line-height: 1.5; }
+  .opt {
+    display: block; width: 100%;
+    padding: 14px; margin-bottom: 10px;
+    border: 2px solid #ddd; border-radius: 12px;
+    background: var(--tg-theme-bg-color, #fff);
+    color: var(--tg-theme-text-color, #222);
+    font-size: 16px; text-align: left; cursor: pointer;
+  }
+  .opt.correct { border-color: #22c55e; background: #dcfce7; }
+  .opt.wrong { border-color: #ef4444; background: #fee2e2; }
+  .opt:disabled { opacity: 0.9; cursor: default; }
+  #score { text-align: center; font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  #next, #restart {
+    display: block; width: 100%; padding: 14px;
+    border: none; border-radius: 12px;
+    background: #2481cc; color: #fff;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  #next { display: none; margin-top: 6px; }
+  #result { display: none; text-align: center; }
+  #result h2 { font-size: 24px; margin-bottom: 10px; }
+  #result p { font-size: 17px; line-height: 1.6; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+  <h1>⚽ EPL Myanmar</h1>
+  <p class="sub">Mini App စမ်းသပ်ဗားရှင်း</p>
+  <div id="user"></div>
+
+  <div class="card" id="quiz-card">
+    <div id="score">အမှတ်: 0 / 3</div>
+    <div class="q" id="question"></div>
+    <div id="options"></div>
+    <button id="next">နောက်မေးခွန်း ➜</button>
+  </div>
+
+  <div class="card" id="result">
+    <h2>🎉 ပြီးသွားပြီ!</h2>
+    <p id="final-score"></p>
+    <button id="restart">ပြန်ကစားမယ်</button>
+  </div>
+
+<script>
+  // Telegram Mini App ကို စတင်ကြောင်း ပြောပါ
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+
+  // Telegram ကနေ သုံးစွဲသူအမည် ယူပြပါ
+  var user = Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+  if (user) {
+    document.getElementById('user').textContent = 'မင်္ဂလာပါ, ' + (user.first_name || '') + ' 👋';
+  }
+
+  // မေးခွန်း ၃ ခု — လိုချင်တဲ့ မေးခွန်းနဲ့ အစားထိုးလို့ရတယ်
+  var questions = [
+    { q: "Arsenal ရဲ့ အိမ်ကွင်းနာမည်က ဘာလဲ?", options: ["Emirates Stadium", "Old Trafford", "Anfield", "Stamford Bridge"], answer: 0 },
+    { q: "EPL မှာ တစ်ရာသီတည်း ဂိုးအများဆုံး သွင်းခဲ့သူက ဘယ်သူလဲ?", options: ["Mohamed Salah", "Erling Haaland", "Harry Kane", "Alan Shearer"], answer: 1 },
+    { q: "ဒီရာသီ Arsenal က Hull ကို ဘယ်ရလဒ်နဲ့ နိုင်ခဲ့လဲ?", options: ["2-0", "1-0", "3-1", "0-0"], answer: 1 }
+  ];
+
+  var current = 0, score = 0, answered = false;
+
+  function showQuestion() {
+    answered = false;
+    var item = questions[current];
+    document.getElementById('question').textContent = (current + 1) + '. ' + item.q;
+    document.getElementById('score').textContent = 'အမှတ်: ' + score + ' / ' + questions.length;
+    document.getElementById('next').style.display = 'none';
+    var box = document.getElementById('options');
+    box.innerHTML = '';
+    item.options.forEach(function(text, i) {
+      var btn = document.createElement('button');
+      btn.className = 'opt';
+      btn.textContent = text;
+      btn.onclick = function() { check(i, btn); };
+      box.appendChild(btn);
+    });
+  }
+
+  function check(i, btn) {
+    if (answered) return;
+    answered = true;
+    var item = questions[current];
+    var buttons = document.querySelectorAll('.opt');
+    buttons.forEach(function(b) { b.disabled = true; });
+    if (i === item.answer) {
+      score++;
+      btn.classList.add('correct');
+      Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    } else {
+      btn.classList.add('wrong');
+      buttons[item.answer].classList.add('correct');
+      Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+    }
+    document.getElementById('score').textContent = 'အမှတ်: ' + score + ' / ' + questions.length;
+    var next = document.getElementById('next');
+    next.style.display = 'block';
+    next.textContent = (current === questions.length - 1) ? 'အဖြေကြည့်မယ်' : 'နောက်မေးခွန်း ➜';
+  }
+
+  document.getElementById('next').onclick = function() {
+    current++;
+    if (current < questions.length) {
+      showQuestion();
+    } else {
+      document.getElementById('quiz-card').style.display = 'none';
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('final-score').textContent =
+        'မင်းရမှတ်: ' + score + ' / ' + questions.length + '\nမှန်တာ ' + score + ' ခု ရှိတယ်!';
+      Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    }
+  };
+
+  document.getElementById('restart').onclick = function() {
+    current = 0; score = 0;
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('quiz-card').style.display = 'block';
+    showQuestion();
+  };
+
+  showQuestion();
+</script>
+</body>
+</html>
